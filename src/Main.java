@@ -13,6 +13,7 @@ public class Main {
     static int mapX = 80;
     static char[][] base = new char[mapY][mapX];
     static Entity[][] entity = new Entity[mapY][mapX];
+    static ArrayList<Entity> entities = new ArrayList<>();
     static ArrayList<ArrayList<ArrayList<Item>>> item = new ArrayList<>();
 
     static int dl;
@@ -29,6 +30,7 @@ public class Main {
     static ArrayList<Item> inv = new ArrayList<>();
 
     static StringBuilder log = new StringBuilder();
+    static boolean showInv = false;
 
     private static void refLog() {
         int size = 0;
@@ -68,34 +70,27 @@ public class Main {
         }
         mapGen();
         while (game) {
-            display();
-            refLog();
-            System.out.print(log);
-
-            //debug
-//            StringBuilder s = new StringBuilder();
-//            for (Entity e : entity[2]) {
-//                if (e == null) {
-//                    s.append(0).append(" ");
-//                } else {
-//                    s.append(e.toString()).append(" ");
-//                }
-//            }
-//            System.out.println(s);
-
-            String cmd = bf.readLine();
-            switch (cmd) {
-                case "Q" -> System.exit(0);
-                case "k" -> move(pl, 0, -1);
-                case "d" -> move(pl, 1, 0);
-                case "h" -> move(pl, -1, 0);
-                case "l" -> move(pl, 0, 1);
-                case "y" -> move(pl, -1, -1);
-                case "u" -> move(pl, 1, -1);
-                case "b" -> move(pl, -1, 1);
-                case "n" -> move(pl, 1, 1);
-                case "<" -> ascend();
-                case "," -> pickup();
+            if (showInv) {
+                inventory();
+                bf.readLine();
+            } else {
+                display();
+                String[] cmd = bf.readLine().split(" ");
+                switch (cmd[0]) {
+                    case "." -> turn();
+                    case "h" -> move(pl, -1, 0);
+                    case "l" -> move(pl, 1, 0);
+                    case "j" -> move(pl, 0, -1);
+                    case "k" -> move(pl, 0, 1);
+                    case "y" -> move(pl, -1, -1);
+                    case "u" -> move(pl, 1, -1);
+                    case "b" -> move(pl, -1, 1);
+                    case "n" -> move(pl, 1, 1);
+                    case "<" -> ascend();
+                    case "," -> pickup();
+                    case "i" -> showInv = true;
+                    case "Q" -> System.exit(0);
+                }
             }
         }
 
@@ -107,7 +102,7 @@ public class Main {
         item.set(y, row);
     }
 
-    private static void pickup() {
+    private static void pickup() throws IOException, InterruptedException {
         int plx = pl.getX();
         int ply = pl.getY();
         ArrayList<Item> items = item.get(ply).get(plx);
@@ -117,6 +112,7 @@ public class Main {
             items.remove(0);
             updateStack(plx, ply, items);
             log.append("You picked up ").append(itemName(i)).append(".").append("\n");
+            turn();
         } else {
             log.append("There is nothing here.").append("\n");
         }
@@ -137,7 +133,7 @@ public class Main {
         return i.getValue() + " " + i.getName() + (i.getValue() > 1 ? "s" : "");
     }
 
-    private static void move(Entity en, int dx, int dy) {
+    private static void move(Entity en, int dx, int dy) throws IOException, InterruptedException {
         int x = en.getX();
         int y = en.getY();
         if (base[y + dy][x + dx] != '#' && entity[y + dy][x + dx] == null) {
@@ -152,6 +148,7 @@ public class Main {
 
             //log output
             if (en == pl) {
+                turn();
                 if (floor != '.' && floor != '\0') {
                     log.append("You are standing in ").append(floorDes(floor)).append(".\n");
                 }
@@ -165,14 +162,36 @@ public class Main {
         }
     }
 
+    private static void turn() throws IOException, InterruptedException {
+        for (Entity e : entities) {
+            if (e != pl) {
+                if (adjacent(e, pl)) {
+                    attack(e, pl);
+                } else {
+                    switch (rand.nextInt(8)) {
+                        case 0 -> move(e, -1, 0);
+                        case 1 -> move(e, 1, 0);
+                        case 2 -> move(e, 0, -1);
+                        case 3 -> move(e, 0, 1);
+                        case 4 -> move(e, -1, -1);
+                        case 5 -> move(e, 1, -1);
+                        case 6 -> move(e, -1, 1);
+                        case 7 -> move(e, 1, 1);
+                    }
+                }
+            }
+        }
+        time++;
+    }
+
     private static void mapGen() {
         for (int y = 0; y < mapY; y++) {
             for (int x = 0; x < mapX; x++) {
+
+                //old mapgen
                 boolean xborder = (y == 1 || y == mapY - 2) && (x != 0 && x != mapX - 1);
                 boolean yborder = (x == 1 || x == mapX - 2) && (y != 0 && y != mapY - 1);
                 boolean floor = y > 1 && y < mapY - 2 && x > 1 && x < mapX - 2;
-
-                //dungeon
                 boolean up = x == 2 && y == 2;
                 boolean down = x == mapX - 3 && y == mapY - 3;
                 if (xborder || yborder) {
@@ -186,23 +205,96 @@ public class Main {
                 }
 
                 //item
-                if (floor && rand.nextInt(100) == 0) {
+                if (base[y][x] == '.' && rand.nextInt(80) == 0) {
                     ArrayList<Item> items = new ArrayList<>();
-                    items.add(new Item('%', "food ration", 1));
+                    items.add(switch (rand.nextInt(6)) {
+                        case 0 -> new Item('%', "food ration", 1);
+                        case 1 -> new Item('$', "gold piece", 25);
+                        case 2 -> new Item(')', "dagger", 1);
+                        case 3 -> new Item('[', "leather armor", 1);
+                        case 4 -> new Item('?', "scroll of upgrade", 1);
+                        case 5 -> new Item('!', "potion of healing", 1);
+                        default -> null;
+                    });
                     item.get(y).set(x, items);
                 }
 
                 //entity
+                if (base[y][x] == '.' && rand.nextInt(100) == 0) {
+                    Entity e = switch (rand.nextInt(5)) {
+                        case 0 -> new Entity('B', "bat", x, y, getHP("bat"));
+                        case 1 -> new Entity('r', "sewer rat", x, y, getHP("sewer rat"));
+                        case 2 -> new Entity('k', "kobold", x, y, getHP("kobold"));
+                        case 3 -> new Entity('o', "goblin", x, y, getHP("goblin"));
+                        case 4 -> new Entity('&', "Demogorgon", x, y, getHP("Demogorgon"));
+                        default -> null;
+                    };
+                    entities.add(e);
+                    entity[y][x] = e;
+                }
+
             }
         }
         pl = new Entity('@', name, 2, 2, hp);
         entity[2][2] = pl;
     }
 
+    public static int getHP(String name) {
+        return switch (name) {
+            case "bat" -> 2;
+            case "sewer rat" -> 4;
+            case "kobold" -> 5;
+            case "goblin" -> 8;
+            case "Demogorgon" -> 456;
+            default -> 1;
+        };
+    }
+
+    public static int getAttack(String s) {
+        return switch (s) {
+            case "bat", "goblin", "kobold" -> 4;
+            case "sewer rat" -> 3;
+            case "Demogorgon" -> 48;
+            default -> 1;
+        };
+    }
+
+    public static boolean adjacent(Entity a, Entity b) {
+        return Math.abs(a.getX() - b.getX()) <= 1 && Math.abs(a.getY() - b.getY()) <= 1;
+    }
+
+    public static void attack(Entity damager, Entity damagee) throws IOException, InterruptedException {
+        int dam = damager.getAttack();
+        int health = damagee.getHealth();
+        if (damagee == pl) {
+            log.append("The ").append(damager.getName()).append(" hits!\n");
+            hp -= dam;
+        } else if (damager == pl) {
+            log.append("You hit the ").append(damagee.getName()).append("\n");
+        }
+        if (dam >= health) {
+            death(damagee);
+        } else {
+            damagee.setHealth(damagee.getHealth() - dam);
+        }
+    }
+
+    public static void death(Entity e) throws IOException, InterruptedException {
+        if (e == pl) {
+            log.append("You were slain...");
+            refLog();
+            display();
+            System.exit(0);
+        } else {
+            entities.remove(e);
+            entity[e.getY()][e.getX()] = null;
+            log.append(e.getName()).append(" died!\n");
+        }
+    }
+
     private static void display() throws IOException, InterruptedException {
         new ProcessBuilder("cmd", "/c", "cls").inheritIO().start().waitFor();
         StringBuilder display = new StringBuilder();
-        display.append(name).append(" the ").append(role).append(" XL: ").append(xl).append(" HP: ").append(hp).append("/").append(maxhp).append(" Pw: ").append(pw).append("/").append(maxpw).append("\n");
         for (int y = 0; y < mapY; y++) {
             for (int x = 0; x < mapX; x++) {
                 char floor = base[y][x];
@@ -222,7 +314,28 @@ public class Main {
             }
             display.append("\n");
         }
+        refLog();
+        System.out.print(log);
+        display.append(name).append(" the ").append(role).append(" t:").append(time).append("\nDlvl:").append(dl).append(" Lv:").append(xl).append(" HP:").append(hp).append("/").append(maxhp).append(" Pw:").append(pw).append("/").append(maxpw).append("\n\n");
         System.out.print(display);
+    }
+
+    private static void inventory() throws IOException, InterruptedException {
+        new ProcessBuilder("cmd", "/c", "cls").inheritIO().start().waitFor();
+        StringBuilder display = new StringBuilder();
+        char c = 97;
+        display.append("Your inventory:\n");
+        if (inv.size() == 0) {
+            display.append("It's empty.\n");
+        } else {
+            for (Item i : inv) {
+                display.append(c).append(") ").append(itemName(i)).append("\n");
+                c++;
+            }
+        }
+        display.append("\nType any command...\n");
+        System.out.print(display);
+        showInv = false;
     }
 
     private static void preset(String s) {
@@ -327,8 +440,8 @@ class Entity {
         return this.health;
     }
 
-    public String getAttack() {
-        return "1d4hit";
+    public int getAttack() {
+        return Main.getAttack(getName());
     }
 
     public void setHealth(int health) {
