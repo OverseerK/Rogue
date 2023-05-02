@@ -86,10 +86,14 @@ public class Main {
             String cmd = bf.readLine();
             switch (cmd) {
                 case "Q" -> System.exit(0);
-                case "w" -> move(pl, 0, -1);
-                case "a" -> move(pl, -1, 0);
-                case "s" -> move(pl, 0, 1);
+                case "k" -> move(pl, 0, -1);
                 case "d" -> move(pl, 1, 0);
+                case "h" -> move(pl, -1, 0);
+                case "l" -> move(pl, 0, 1);
+                case "y" -> move(pl, -1, -1);
+                case "u" -> move(pl, 1, -1);
+                case "b" -> move(pl, -1, 1);
+                case "n" -> move(pl, 1, 1);
                 case "<" -> ascend();
                 case "," -> pickup();
             }
